@@ -1,0 +1,12 @@
+data:
+  raw_path: "data/raw_churn.csv"
+  target: "Churn"
+  id_column: "customerID"
+
+model:
+  test_size: 0.2
+  random_state: 42
+
+artifacts:
+  model_dir: "artifacts"
+  baseline_model_path: "artifacts/logistic_model.pkl"
