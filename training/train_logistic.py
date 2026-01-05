@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
 import joblib
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -34,7 +37,11 @@ def build_pipeline(X: pd.DataFrame) -> Pipeline:
 
 
 def train_and_save(model_path: str = "artifacts/logistic_model.pkl") -> float:
-    df_raw = load_data("data/raw_churn.csv")
+    # Get the project root directory
+    project_root = Path(__file__).parent.parent
+    csv_path = project_root / "data" / "raw_churn.csv"
+    
+    df_raw = load_data(csv_path)
     df = clean_raw(df_raw)
 
     X, y = split_xy(df)
@@ -53,5 +60,9 @@ def train_and_save(model_path: str = "artifacts/logistic_model.pkl") -> float:
 
 
 if __name__ == "__main__":
-    auc = train_and_save()
+    # Get the project root for model path
+    project_root = Path(__file__).parent.parent
+    model_path = project_root / "artifacts" / "logistic_model.pkl"
+    
+    auc = train_and_save(str(model_path))
     print(f"✅ Logistic Regression trained and saved. ROC-AUC={auc:.4f}")
