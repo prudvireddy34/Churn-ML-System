@@ -1,40 +1,57 @@
 from __future__ import annotations
 
 from pathlib import Path
+import argparse
+import json
 import joblib
 import pandas as pd
 
-from data_ingestion.load_data import load_data
-from feature_engineering.build_features import clean_raw, split_xy
 
+def predict(
+    model_path: str,
+    input_csv: str,
+    output_csv: str,
+    threshold: float = 0.5,
+) -> dict:
+    model_path = Path(model_path)
+    if not model_path.exists():
+        raise FileNotFoundError(f"Model not found: {model_path}")
 
-MODEL_PATH = "artifacts/logistic_model.pkl"
-OUTPUT_PATH = "artifacts/churn_predictions.csv"
+    df = pd.read_csv(input_csv)
+    if df.empty:
+        raise ValueError("Input CSV is empty")
 
+    model = joblib.load(model_path)
 
-def run_inference():
-    # Load trained model
-    if not Path(MODEL_PATH).exists():
-        raise FileNotFoundError("Model not found. Train the model first.")
+    # Model is a sklearn Pipeline; it can handle raw columns as trained
+    proba = model.predict_proba(df)[:, 1]
+    preds = (proba >= threshold).astype(int)
 
-    model = joblib.load(MODEL_PATH)
+    out = df.copy()
+    out["churn_probability"] = proba
+    out["churn_prediction"] = preds
+    Path(output_csv).parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(output_csv, index=False)
 
-    # Load and prepare data
-    df_raw = load_data("data/raw_churn.csv")
-    df_clean = clean_raw(df_raw)
-
-    X, _ = split_xy(df_clean)
-
-    # Predict churn probabilities
-    churn_probs = model.predict_proba(X)[:, 1]
-
-    results = pd.DataFrame({
-        "churn_probability": churn_probs
-    })
-
-    results.to_csv(OUTPUT_PATH, index=False)
-    print(f"✅ Inference complete. Predictions saved to {OUTPUT_PATH}")
+    summary = {
+        "input_rows": int(df.shape[0]),
+        "threshold": float(threshold),
+        "predicted_churn_rate": float(preds.mean()),
+        "avg_churn_probability": float(proba.mean()),
+        "model_path": str(model_path),
+        "output_csv": str(output_csv),
+    }
+    return summary
 
 
 if __name__ == "__main__":
-    run_inference()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", default="artifacts/logistic_model.pkl")
+    parser.add_argument("--input", default="data/raw_churn.csv")
+    parser.add_argument("--output", default="artifacts/predictions.csv")
+    parser.add_argument("--threshold", type=float, default=0.5)
+    args = parser.parse_args()
+
+    summary = predict(args.model, args.input, args.output, args.threshold)
+    print("✅ Inference completed")
+    print(json.dumps(summary, indent=2))
